@@ -1,0 +1,161 @@
+﻿@page "/account/register"
+@using Microsoft.AspNetCore.Identity
+@using System.ComponentModel.DataAnnotations
+@using UserManagement.Domain.Entities
+@inject NavigationManager NavigationManager
+@inject UserManager<ApplicationUser> UserManager
+
+<div class="row justify-content-center mt-5">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow">
+            <div class="card-body p-4">
+                <h2 class="text-center mb-4">Create Account</h2>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger">@errorMessage</div>
+                }
+
+                <EditForm Model="@registerModel" OnValidSubmit="@HandleRegister">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="text-danger" />
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">First Name</label>
+                            <InputText @bind-Value="registerModel.FirstName" class="form-control" />
+                            <ValidationMessage For="@(() => registerModel.FirstName)" />
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Last Name</label>
+                            <InputText @bind-Value="registerModel.LastName" class="form-control" />
+                            <ValidationMessage For="@(() => registerModel.LastName)" />
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <InputText @bind-Value="registerModel.Email" class="form-control" />
+                        <ValidationMessage For="@(() => registerModel.Email)" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Phone Number</label>
+                        <InputText @bind-Value="registerModel.PhoneNumber" class="form-control" />
+                        <ValidationMessage For="@(() => registerModel.PhoneNumber)" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Date of Birth</label>
+                        <InputDate @bind-Value="registerModel.DateOfBirth" class="form-control" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <InputText type="password" @bind-Value="registerModel.Password" class="form-control" />
+                        <ValidationMessage For="@(() => registerModel.Password)" />
+                        <small class="text-muted">Password must be at least 8 characters with uppercase, lowercase, number, and special character.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Confirm Password</label>
+                        <InputText type="password" @bind-Value="registerModel.ConfirmPassword" class="form-control" />
+                        <ValidationMessage For="@(() => registerModel.ConfirmPassword)" />
+                    </div>
+
+                    <div class="d-grid mb-3">
+                        <button type="submit" class="btn btn-primary" disabled="@isLoading">
+                            @if (isLoading)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            Register
+                        </button>
+                    </div>
+
+                    <div class="text-center">
+                        <p class="mb-0">Already have an account? <a href="/account/login">Login</a></p>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private RegisterModel registerModel = new();
+    private string? errorMessage;
+    private bool isLoading;
+
+    private async Task HandleRegister()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var user = new ApplicationUser
+                {
+                    UserName = registerModel.Email,
+                    Email = registerModel.Email,
+                    FirstName = registerModel.FirstName,
+                    LastName = registerModel.LastName,
+                    PhoneNumber = registerModel.PhoneNumber,
+                    DateOfBirth = registerModel.DateOfBirth,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+            var result = await UserManager.CreateAsync(user, registerModel.Password);
+
+            if (result.Succeeded)
+            {
+                await UserManager.AddToRoleAsync(user, "User");
+                NavigationManager.NavigateTo("/account/login?registered=true");
+            }
+            else
+            {
+                errorMessage = string.Join(", ", result.Errors.Select(e => e.Description));
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    public class RegisterModel
+    {
+        [Required]
+        [StringLength(100)]
+        public string FirstName { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(100)]
+        public string LastName { get; set; } = string.Empty;
+
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Phone]
+        public string? PhoneNumber { get; set; }
+
+        public DateTime? DateOfBirth { get; set; }
+
+        [Required]
+        [StringLength(100, MinimumLength = 8)]
+        [DataType(DataType.Password)]
+        public string Password { get; set; } = string.Empty;
+
+        [Required]
+        [Compare(nameof(Password))]
+        [DataType(DataType.Password)]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

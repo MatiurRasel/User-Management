@@ -1,0 +1,238 @@
+﻿@page "/admin/users"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using UserManagement.Domain.Entities
+@using UserManagement.Domain.Interfaces
+@attribute [Authorize(Roles = "Admin")]
+@inject UserManager<ApplicationUser> UserManager
+@inject IUnitOfWork UnitOfWork
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>User Management</h2>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="@(() => successMessage = null)"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="mb-4">
+                <div class="row">
+                    <div class="col-md-10">
+                        <input type="text" class="form-control" placeholder="Search by name or email..." @bind="searchTerm" @bind:event="oninput" />
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-primary w-100" @onclick="LoadUsers">Search</button>
+                    </div>
+                </div>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Roles</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var user in users)
+                            {
+                                <tr>
+                                    <td>@user.FullName</td>
+                                    <td>
+                                        @user.Email
+                                        @if (user.EmailConfirmed)
+                                        {
+                                            <i class="bi bi-check-circle-fill text-success"></i>
+                                        }
+                                    </td>
+                                    <td>@(user.PhoneNumber ?? "N/A")</td>
+                                    <td>
+                                        @foreach (var role in user.Roles)
+                                        {
+                                            <span class="badge bg-info">@role</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (user.IsActive)
+                                        {
+                                            <span class="badge bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">Inactive</span>
+                                        }
+                                    </td>
+                                    <td>@user.CreatedAt.ToString("MM/dd/yyyy")</td>
+                                    <td>
+                                        @if (user.IsActive)
+                                        {
+                                            <button class="btn btn-sm btn-danger" @onclick="@(() => ToggleUserStatus(user))">Deactivate</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-success" @onclick="@(() => ToggleUserStatus(user))">Activate</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (totalPages > 1)
+                {
+                    <nav>
+                        <ul class="pagination justify-content-center">
+                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="@(() => ChangePage(currentPage - 1))">Previous</button>
+                            </li>
+
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                var page = i;
+                                <li class="page-item @(i == currentPage ? "active" : "")">
+                                    <button class="page-link" @onclick="@(() => ChangePage(page))">@i</button>
+                                </li>
+                            }
+
+                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="@(() => ChangePage(currentPage + 1))">Next</button>
+                            </li>
+                        </ul>
+                    </nav>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<UserViewModel> users = new();
+    private string searchTerm = string.Empty;
+    private string? successMessage;
+    private bool isLoading;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        isLoading = true;
+
+        try
+        {
+            IEnumerable<ApplicationUser> userList;
+            int totalCount;
+
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                userList = await UnitOfWork.Users.SearchUsersAsync(searchTerm, currentPage, pageSize);
+                totalCount = await UnitOfWork.Users.CountAsync(u =>
+                    u.FirstName.Contains(searchTerm) ||
+                    u.LastName.Contains(searchTerm) ||
+                    u.Email!.Contains(searchTerm));
+            }
+            else
+            {
+                var result = await UnitOfWork.Users.GetPagedAsync(
+                    currentPage,
+                    pageSize,
+                    orderBy: q => q.OrderByDescending(u => u.CreatedAt)
+                );
+                userList = result.Items;
+                totalCount = result.TotalCount;
+            }
+
+            users.Clear();
+            foreach (var user in userList)
+            {
+                var roles = await UserManager.GetRolesAsync(user);
+                users.Add(new UserViewModel
+                    {
+                        Id = user.Id,
+                        Email = user.Email!,
+                        FullName = user.FullName,
+                        PhoneNumber = user.PhoneNumber,
+                        IsActive = user.IsActive,
+                        EmailConfirmed = user.EmailConfirmed,
+                        CreatedAt = user.CreatedAt,
+                        Roles = roles.ToList()
+                    });
+            }
+
+            totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ChangePage(int page)
+    {
+        if (page < 1 || page > totalPages) return;
+        currentPage = page;
+        await LoadUsers();
+    }
+
+    private async Task ToggleUserStatus(UserViewModel userViewModel)
+    {
+        var user = await UserManager.FindByIdAsync(userViewModel.Id);
+        if (user != null)
+        {
+            user.IsActive = !user.IsActive;
+            user.ModifiedAt = DateTime.UtcNow;
+            await UserManager.UpdateAsync(user);
+
+            if (!user.IsActive)
+            {
+                await UnitOfWork.UserSessions.RevokeAllUserSessionsAsync(user.Id);
+                await UnitOfWork.RefreshTokens.RevokeAllUserTokensAsync(user.Id);
+                await UnitOfWork.SaveChangesAsync();
+            }
+
+            successMessage = $"User {(user.IsActive ? "activated" : "deactivated")} successfully.";
+            await LoadUsers();
+        }
+    }
+
+    public class UserViewModel
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public string? PhoneNumber { get; set; }
+        public bool IsActive { get; set; }
+        public bool EmailConfirmed { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public List<string> Roles { get; set; } = new();
+    }
+}

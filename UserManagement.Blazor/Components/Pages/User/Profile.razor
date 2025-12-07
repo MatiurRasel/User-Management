@@ -1,0 +1,151 @@
+﻿@page "/user/profile"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using UserManagement.Domain.Entities
+@using UserManagement.Domain.Interfaces
+@attribute [Authorize]
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject IUnitOfWork UnitOfWork
+
+<AuthorizeView>
+    <Authorized>
+        @if (currentUser != null)
+        {
+            <div class="container mt-4">
+                @if (!string.IsNullOrEmpty(successMessage))
+                {
+                    <div class="alert alert-success alert-dismissible fade show">
+                        @successMessage
+                        <button type="button" class="btn-close" @onclick="@(() => successMessage = null)"></button>
+                    </div>
+                }
+
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card shadow-sm">
+                            <div class="card-body text-center">
+                                @if (!string.IsNullOrEmpty(currentUser.ProfilePicture))
+                                {
+                                    <img src="@currentUser.ProfilePicture" alt="Profile" class="rounded-circle mb-3" style="width: 150px; height: 150px; object-fit: cover;" />
+                                }
+                                else
+                                {
+                                    <div class="bg-secondary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 150px; height: 150px;">
+                                        <i class="bi bi-person-fill text-white" style="font-size: 4rem;"></i>
+                                    </div>
+                                }
+
+                                <h4 class="mb-1">@currentUser.FullName</h4>
+                                <p class="text-muted mb-3">@currentUser.Email</p>
+
+                                <div class="d-grid gap-2">
+                                    <a href="/user/edit" class="btn btn-primary">Edit Profile</a>
+                                    <a href="/account/change-password" class="btn btn-outline-secondary">Change Password</a>
+                                </div>
+
+                                <hr class="my-3" />
+
+                                <div class="text-start">
+                                    <p class="mb-2">
+                                        <strong>Status:</strong>
+                                        @if (currentUser.EmailConfirmed)
+                                        {
+                                            <span class="badge bg-success">Email Verified</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning">Email Not Verified</span>
+                                        }
+                                    </p>
+                                    <p class="mb-2">
+                                        <strong>Roles:</strong>
+                                        @foreach (var role in userRoles)
+                                        {
+                                            <span class="badge bg-info">@role</span>
+                                        }
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-8">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0">Personal Information</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <strong>Email:</strong>
+                                        <p>@currentUser.Email</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong>Phone Number:</strong>
+                                        <p>@(currentUser.PhoneNumber ?? "Not provided")</p>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <strong>Date of Birth:</strong>
+                                        <p>@(currentUser.DateOfBirth?.ToString("MMMM dd, yyyy") ?? "Not provided")</p>
+                                    </div>
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(userProfile?.Bio))
+                                {
+                                    <div class="mb-3">
+                                        <strong>Bio:</strong>
+                                        <p>@userProfile.Bio</p>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="text-center mt-5">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>Please log in to view your profile.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private ApplicationUser? currentUser;
+    private UserProfile? userProfile;
+    private IList<string> userRoles = new List<string>();
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var userEmail = user.Identity.Name;
+            if (!string.IsNullOrEmpty(userEmail))
+            {
+                var appUser = await UserManager.FindByEmailAsync(userEmail);
+                if (appUser != null)
+                {
+                    currentUser = await UnitOfWork.Users.GetByIdWithProfileAsync(appUser.Id);
+                    userRoles = await UserManager.GetRolesAsync(appUser);
+                    userProfile = currentUser?.UserProfile;
+                }
+            }
+        }
+    }
+}

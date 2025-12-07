@@ -1,0 +1,92 @@
+﻿@page
+@model ProfileModel
+@{
+    ViewData["Title"] = "My Profile";
+}
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    @if (!string.IsNullOrEmpty(Model.CurrentUser?.ProfilePicture))
+                    {
+                        <img src="@Model.CurrentUser.ProfilePicture" alt="Profile" class="rounded-circle mb-3" style="width: 150px; height: 150px; object-fit: cover;" />
+                    }
+                    else
+                    {
+                        <div class="bg-secondary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 150px; height: 150px;">
+                            <i class="bi bi-person-fill text-white" style="font-size: 4rem;"></i>
+                        </div>
+                    }
+
+                    <h4 class="mb-1">@Model.CurrentUser?.FullName</h4>
+                    <p class="text-muted mb-3">@Model.CurrentUser?.Email</p>
+
+                    <div class="d-grid gap-2">
+                        <a asp-page="./Edit" class="btn btn-primary">Edit Profile</a>
+                        <a asp-page="/Account/ChangePassword" class="btn btn-outline-secondary">Change Password</a>
+                    </div>
+
+                    <hr class="my-3" />
+
+                    <div class="text-start">
+                        <p class="mb-2">
+                            <strong>Status:</strong>
+                            @if (Model.CurrentUser?.EmailConfirmed == true)
+                            {
+                                <span class="badge bg-success">Email Verified</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning">Email Not Verified</span>
+                            }
+                        </p>
+                        <p class="mb-2">
+                            <strong>Roles:</strong>
+                            @foreach (var role in Model.Roles)
+                            {
+                                <span class="badge bg-info">@role</span>
+                            }
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Personal Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Email:</strong>
+                            <p>@Model.CurrentUser?.Email</p>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Phone Number:</strong>
+                            <p>@(Model.CurrentUser?.PhoneNumber ?? "Not provided")</p>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Date of Birth:</strong>
+                            <p>@(Model.CurrentUser?.DateOfBirth?.ToString("MMMM dd, yyyy") ?? "Not provided")</p>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(Model.UserProfile?.Bio))
+                    {
+                        <div class="mb-3">
+                            <strong>Bio:</strong>
+                            <p>@Model.UserProfile.Bio</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
